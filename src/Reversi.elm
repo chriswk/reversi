@@ -1,4 +1,4 @@
-module Reversi exposing (createGame, unclaimedTiles, tilesForPlayer, Game, GameStatus(..), Player(..), Turn(..), Tile)
+module Reversi exposing (createGame, unclaimedTiles, tilesForPlayer, Game, GameStatus(..), Player(..), Turn(..), Tile, claimPiece, decideWinner)
 
 import List.Extra exposing (getAt, setAt)
 
@@ -6,6 +6,12 @@ import List.Extra exposing (getAt, setAt)
 type Player
     = Black
     | White
+
+
+type alias Claim =
+    { player : Player
+    , id : Int
+    }
 
 
 type alias Tile =
@@ -18,6 +24,7 @@ type GameStatus
     = Playing
     | BlackWin
     | WhiteWin
+    | Draw
 
 
 type Turn
@@ -34,8 +41,30 @@ type alias Game =
     }
 
 
-claimPiece : List Tile -> Player -> Int -> List Tile
-claimPiece tiles player tileId =
+decideWinner : Game -> GameStatus
+decideWinner game =
+    let
+        undecided =
+            unclaimedTiles game
+
+        whiteScore =
+            tilesForPlayer game White
+
+        blackScore =
+            tilesForPlayer game Black
+    in
+        if undecided > 0 then
+            Playing
+        else if whiteScore > blackScore then
+            WhiteWin
+        else if whiteScore == blackScore then
+            Draw
+        else
+            BlackWin
+
+
+claimPiece : Int -> Player -> List Tile -> List Tile
+claimPiece tileId player tiles =
     let
         oldTile =
             getAt tileId tiles
@@ -85,6 +114,40 @@ initialTiles squareSize =
             |> List.map createTile
 
 
+leftMidTop : Game -> Int
+leftMidTop game =
+    game.cols * ((game.cols // 2) - 1) + (game.cols // 2 - 1)
+
+
+leftMidBot : Game -> Int
+leftMidBot game =
+    game.cols * (game.cols // 2) + (game.cols // 2 - 1)
+
+
+rightMidTop : Game -> Int
+rightMidTop game =
+    game.cols * ((game.cols // 2) - 1) + (game.cols // 2)
+
+
+rightMidBot : Game -> Int
+rightMidBot game =
+    game.cols * ((game.cols // 2)) + (game.cols // 2)
+
+
+claimInitialPieces : Game -> Game
+claimInitialPieces game =
+    let
+        initialBoard =
+            game.tiles
+                |> claimPiece (leftMidTop game) Black
+                |> claimPiece (leftMidBot game) White
+                |> claimPiece (rightMidTop game) White
+                |> claimPiece (rightMidBot game) Black
+    in
+        { game | tiles = initialBoard }
+
+
 createGame : Int -> Game
 createGame rowSize =
     Game rowSize rowSize BlackTurn Playing (initialTiles rowSize)
+        |> claimInitialPieces

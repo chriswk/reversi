@@ -1,11 +1,10 @@
 module Main exposing (..)
 
-import Html exposing (Html, text, div, h1, img, button)
+import Html exposing (Html, text, div, h1, img, button, tr, td, table)
 import Html.Attributes exposing (src, id, class)
 import Html.Events exposing (onClick)
-import Reversi exposing (createGame, Game, GameStatus(..), tilesForPlayer, unclaimedTiles, Player(..), Tile)
+import Reversi exposing (createGame, Game, Turn(..), GameStatus(..), tilesForPlayer, unclaimedTiles, claimPiece, decideWinner, Player(..), Tile)
 import Utils exposing (partitionByN)
-import List.extra exposing (getAt, setAt)
 
 
 ---- MODEL ----
@@ -27,7 +26,7 @@ init =
 
 type Msg
     = NewGame
-    | ClaimPiece Player Int
+    | ClaimPiece Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -36,15 +35,37 @@ update msg model =
         NewGame ->
             init
 
-        ClaimPiece player id ->
+        ClaimPiece id ->
             let
-                game = model.game
-                tiles = claimPiece game.tiles player id
-                unclaimed = unclaimedTiles game
-                gameStatus = if unclaimed == 0 then decideWinner game else Playing
-                updatedGame = { game | tiles = tiles, status = gameStatus } 
+                game =
+                    model.game
+
+                player =
+                    case model.game.turn of
+                        BlackTurn ->
+                            Black
+
+                        WhiteTurn ->
+                            White
+
+                tiles =
+                    claimPiece id player game.tiles
+
+                status =
+                    decideWinner game
+
+                turn =
+                    case game.turn of
+                        BlackTurn ->
+                            WhiteTurn
+
+                        WhiteTurn ->
+                            BlackTurn
+
+                updatedGame =
+                    { game | tiles = tiles, status = status, turn = turn }
             in
-                ({ model | game = updatedGame}, Cmd.None
+                ( { model | game = updatedGame }, Cmd.none )
 
 
 
@@ -55,19 +76,19 @@ scoreText : Game -> Html Msg
 scoreText game =
     let
         blackScore =
-            tilesForPlayer game Black
+            toString (tilesForPlayer game Black)
 
         whiteScore =
-            tilesForPlayer game White
+            toString (tilesForPlayer game White)
 
         remaining =
-            unclaimedTiles game
+            toString (unclaimedTiles game)
     in
         div []
-            [ div [] text "playing"
-            , div [] text "Black pieces: " ++ toString blackScore
-            , div [] text "White pieces: " ++ toString whiteScore
-            , div [] text "Unclaimed: " ++ toString remaining
+            [ div [] [ text "playing" ]
+            , div [] [ text ("Black pieces: " ++ blackScore) ]
+            , div [] [ text ("White pieces: " ++ whiteScore) ]
+            , div [] [ text ("Unclaimed: " ++ remaining) ]
             ]
 
 
@@ -85,7 +106,7 @@ winningText game player =
                 White ->
                     "White wins with " ++ score
     in
-        div [] text t
+        div [] [ text t ]
 
 
 statusView : Game -> Html Msg
@@ -97,12 +118,19 @@ statusView game =
                     ( scoreText game, "playing" )
 
                 BlackWin ->
-                    ( winningText Black, "blackwon" )
+                    ( winningText game Black, "blackwon" )
 
                 WhiteWin ->
-                    ( winningText White, "whitewon" )
+                    ( winningText game White, "whitewon" )
+
+                Draw ->
+                    let
+                        t =
+                            div [] [ text "Draw" ]
+                    in
+                        ( t, "draw" )
     in
-        div [ class "status " ++ cssClass ] status
+        div [ class ("status " ++ cssClass) ] [ status ]
 
 
 drawTile : Tile -> Html Msg
@@ -119,15 +147,19 @@ drawTile tile =
                 Nothing ->
                     ""
     in
-        div [ class "cell " ++ colorClass ] [ div [ class "piece" ] [] ]
+        td [ class ("cell " ++ colorClass), onClick (ClaimPiece tile.id) ] [ div [ class "piece" ] [ text ((toString tile.id) ++ " " ++ (toString tile.owner)) ] ]
 
 
 drawRow : List Tile -> Html Msg
 drawRow tiles =
-    div [ class "row" ] List.map drawTile tiles
+    let
+        t =
+            List.map drawTile tiles
+    in
+        tr [ class "row" ] t
 
 
-drawRows : Game -> Html Msg
+drawRows : Game -> List (Html Msg)
 drawRows game =
     partitionByN game.rows game.tiles
         |> List.map drawRow
@@ -142,11 +174,15 @@ gameButtons =
 
 view : Model -> Html Msg
 view model =
-    div [ id "main" ]
-        [ h1 [] [ text "Reversi", statusView model.game ]
-        , div [ class "board" ] drawRows model.game.tiles
-        , div [ class "buttons" ] gameButtons
-        ]
+    let
+        rows =
+            drawRows model.game
+    in
+        div [ id "main" ]
+            [ h1 [] [ text "Reversi", statusView model.game ]
+            , div [ class "board" ] [ table [] rows ]
+            , div [ class "buttons" ] [ gameButtons ]
+            ]
 
 
 
