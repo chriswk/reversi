@@ -6,6 +6,7 @@
     "source-directories": [
         "src"
     ],
+    "homepage": "https://chriswk.github.com/reversi",
     "exposed-modules": [],
     "dependencies": {
         "elm-community/list-extra": "7.1.0 <= v < 8.0.0",
